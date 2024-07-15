@@ -381,7 +381,7 @@ class ProteinDataset(Dataset):
                 ]
             )
             to_download = list(set(to_download))
-            logger.info(f"Downloading {len(to_download)} structures")
+            logger.info(f"Downloading {len(to_download)} structures, {to_download[0]}, {self.raw_dir}")
             file_format = (
                 self.format[:-3]
                 if self.format.endswith(".gz")

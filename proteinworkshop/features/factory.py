@@ -26,6 +26,8 @@ from proteinworkshop.types import (
     VectorNodeFeature,
 )
 
+from proteinworkshop.features.compute_subgraphs import compute_subgraphs_batch, compute_radius_graph
+
 StructureRepresentation = Literal["ca", "ca_bb", "full_atom"]
 
 
@@ -63,6 +65,8 @@ class ProteinFeaturiser(nn.Module):
         edge_types: List[str],
         scalar_edge_features: List[ScalarEdgeFeature],
         vector_edge_features: List[VectorEdgeFeature],
+        subgraph_pretraining_edges = False,
+        compute_subgraphs = False
     ):
         super(ProteinFeaturiser, self).__init__()
         self.representation = representation
@@ -71,7 +75,8 @@ class ProteinFeaturiser(nn.Module):
         self.edge_types = edge_types
         self.scalar_edge_features = scalar_edge_features
         self.vector_edge_features = vector_edge_features
-
+        self.subgraph_pretraining_edges = subgraph_pretraining_edges
+        self.compute_subgraphs = compute_subgraphs
         if "sequence_positional_encoding" in self.scalar_node_features:
             self.positional_encoding = PositionalEncoding(16)
 
@@ -124,6 +129,17 @@ class ProteinFeaturiser(nn.Module):
         if self.vector_edge_features:
             batch = compute_vector_edge_features(
                 batch, self.vector_edge_features
+            )
+
+        ### for pronet pretrainig
+        if hasattr(self, 'subgraph_pretraining_edges') and self.subgraph_pretraining_edges:
+            batch.edge_index = compute_radius_graph(
+                batch, self.subgraph_pretraining_edges
+            )
+        
+        if hasattr(self, 'compute_subgraphs') and self.compute_subgraphs:
+            batch.subgraphs, batch.subgraph_distances, batch.subgraph_lengths = compute_subgraphs_batch(
+                batch, self.compute_subgraphs
             )
 
         return batch

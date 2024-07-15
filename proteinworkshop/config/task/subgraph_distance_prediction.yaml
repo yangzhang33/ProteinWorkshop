@@ -1,0 +1,28 @@
+# @package _global_
+
+defaults:
+  - override /metrics:
+      - rmse
+  - override /decoder:
+      - subgraph_distances
+  - override /transforms:
+      - remove_missing_ca
+      # - subgraph_distance_prediction
+
+callbacks:
+  early_stopping:
+    monitor: val/subgraph_distances/rmse
+    mode: "min"
+  model_checkpoint:
+    monitor: val/subgraph_distances/rmse
+    mode: "min"
+
+task:
+  task: "subgraph_distance_prediction"
+  losses:
+    subgraph_distances: mse_loss
+  label_smoothing: 0.0
+  output:
+    - subgraph_distances
+  supervise_on:
+    - subgraph_distances

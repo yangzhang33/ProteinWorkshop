@@ -1,0 +1,4 @@
+subgraph_distances:
+  _target_: "proteinworkshop.models.decoders.mlp_dist.MLP_Pred_Dist"
+  hidden_channels: 128
+  input: "fused_repr"

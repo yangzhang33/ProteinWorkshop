@@ -174,6 +174,8 @@ class BaseModel(L.LightningModule, abc.ABC):
                 labels["edge_distance"] = batch.edge_distance_labels
             elif output in {"b_factor", "plddt"}:
                 labels["b_factor"] = batch.b_factor
+            elif output == "subgraph_distances":
+                labels["subgraph_distances"] = batch.subgraph_distances.to(self.device)
 
         return Label(labels)
 
@@ -636,7 +638,6 @@ class BenchMarkModel(BaseModel):
         try:
             y = self.get_labels(batch)
             y_hat = self(batch)
-
             loss = self.compute_loss(y_hat, y)
             self.log_metrics(loss, y_hat, y, stage, batch=batch)
 

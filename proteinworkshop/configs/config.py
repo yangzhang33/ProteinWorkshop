@@ -30,6 +30,7 @@ SELF_SUPERVISION_OUTPUTS = [
     "pos",
     "edge_distance",
     "b_factor",
+    "subgraph_distances", # added
 ]
 
 CLASSIFICATION_OUTPUTS = ["graph_label", "node_label"]
@@ -231,6 +232,7 @@ def validate_classification_config(cfg: DictConfig):
         "edge_distance_prediction",
         "plddt_prediction",
         "torsional_denoising",
+        "subgraph_distance_prediction",
     ] and set(cfg.task.output).isdisjoint(
         {"graph_label", "node_label", "dataset_features"}
     ):

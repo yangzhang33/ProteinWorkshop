@@ -91,6 +91,7 @@ class MLPDecoder(nn.Module):
         dropout: float,
         skip: bool = True,
         input: Optional[str] = None,
+        dummy = False,
     ):
         """Initialise MLP decoder.
 
@@ -114,37 +115,38 @@ class MLPDecoder(nn.Module):
         self.activations = activations
         self.dropout = dropout
         self.input = input
+        self.dummy = dummy
+        if not self.dummy:
+            assert (
+                len(self.activations) == len(self.hidden_dim) + 1
+            ), f"Decoder activations {self.activations} and dims {self.hidden_dim} of incorrect length."
 
-        assert (
-            len(self.activations) == len(self.hidden_dim) + 1
-        ), f"Decoder activations {self.activations} and dims {self.hidden_dim} of incorrect length."
+            if skip in {"sum", "concat"}:
+                logger.info("Using skip connection in decoder.")
+                self.layers = LinearSkipBlock(
+                    self.hidden_dim, self.activations, out_dim, dropout, skip
+                )
+            else:
+                # First layer
+                decoder_layers = nn.ModuleList([nn.LazyLinear(self.hidden_dim[0])])
+                decoder_layers.append(get_activations(self.activations[0]))
+                decoder_layers.append(nn.Dropout(self.dropout))
 
-        if skip in {"sum", "concat"}:
-            logger.info("Using skip connection in decoder.")
-            self.layers = LinearSkipBlock(
-                self.hidden_dim, self.activations, out_dim, dropout, skip
-            )
-        else:
-            # First layer
-            decoder_layers = nn.ModuleList([nn.LazyLinear(self.hidden_dim[0])])
-            decoder_layers.append(get_activations(self.activations[0]))
-            decoder_layers.append(nn.Dropout(self.dropout))
+                # Iterate over remaining layers
+                for i, _ in enumerate(self.hidden_dim):
+                    if i < len(self.hidden_dim) - 1:
+                        decoder_layers.append(
+                            nn.LazyLinear(self.hidden_dim[i + 1])
+                        )
+                        decoder_layers.append(
+                            get_activations(self.activations[i + 1])
+                        )
+                        decoder_layers.append(nn.Dropout(self.dropout))
 
-            # Iterate over remaining layers
-            for i, _ in enumerate(self.hidden_dim):
-                if i < len(self.hidden_dim) - 1:
-                    decoder_layers.append(
-                        nn.LazyLinear(self.hidden_dim[i + 1])
-                    )
-                    decoder_layers.append(
-                        get_activations(self.activations[i + 1])
-                    )
-                    decoder_layers.append(nn.Dropout(self.dropout))
-
-            # Last layer
-            decoder_layers.append(nn.LazyLinear(out_dim))
-            decoder_layers.append(get_activations(self.activations[-1]))
-            self.layers = nn.Sequential(*decoder_layers)
+                # Last layer
+                decoder_layers.append(nn.LazyLinear(out_dim))
+                decoder_layers.append(get_activations(self.activations[-1]))
+                self.layers = nn.Sequential(*decoder_layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass of MLP decoder.
@@ -154,7 +156,10 @@ class MLPDecoder(nn.Module):
         :return: Output tensor
         :rtype: torch.Tensor
         """
-        return self.layers(x)
+        if not self.dummy:
+            return self.layers(x)
+        else:
+            return x
 
 
 class PositionDecoder(nn.Module):

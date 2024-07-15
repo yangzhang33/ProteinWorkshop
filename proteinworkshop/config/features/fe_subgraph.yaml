@@ -1,0 +1,14 @@
+_target_: proteinworkshop.features.factory.ProteinFeaturiser
+representation: CA
+scalar_node_features:
+  - amino_acid_one_hot
+vector_node_features: []
+edge_types: []
+scalar_edge_features: []
+vector_edge_features: []
+subgraph_pretraining_edges:
+  - 10.0 # cutoff
+  - 32 # max_num_neighbors
+compute_subgraphs:
+  - 2 # k_hops
+  - 0.1 # num_subgraphs_per_protein_perc

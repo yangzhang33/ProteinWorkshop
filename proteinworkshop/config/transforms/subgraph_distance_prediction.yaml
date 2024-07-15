@@ -1,0 +1,6 @@
+subgraph_distance_prediction:
+  _target_: proteinworkshop.tasks.subgraph_distance_prediction.ComputeSubgraphsTransform
+  k_hops: 2
+  max_num_neighbors: 32
+  num_subgraphs_per_protein_perc: 0.1
+  cutoff: 10

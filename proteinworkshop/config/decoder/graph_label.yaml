@@ -6,3 +6,4 @@ graph_label:
   skip: "concat" # Or sum/False
   out_dim: ${dataset.num_classes}
   input: "graph_embedding"
+  dummy: False
