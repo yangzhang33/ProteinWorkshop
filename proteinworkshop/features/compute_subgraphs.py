@@ -50,6 +50,7 @@ def compute_subgraphs_batch(
         dist.append(torch.norm(center_prot-center_sub))
     
     # dist / max(dist) in a batch
+    #  to remove
     max_dist = max(dist)
     dist = [d / max_dist for d in dist]
     
