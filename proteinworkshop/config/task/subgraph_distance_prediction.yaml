@@ -2,7 +2,7 @@
 
 defaults:
   - override /metrics:
-      - rmse
+      - mse
   - override /decoder:
       - subgraph_distances
   - override /transforms:
@@ -11,10 +11,10 @@ defaults:
 
 callbacks:
   early_stopping:
-    monitor: val/subgraph_distances/rmse
+    monitor: val/subgraph_distances/mse
     mode: "min"
   model_checkpoint:
-    monitor: val/subgraph_distances/rmse
+    monitor: val/subgraph_distances/mse
     mode: "min"
 
 task:
