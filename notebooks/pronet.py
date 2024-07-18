@@ -366,11 +366,19 @@ class ProNet(nn.Module):
 
     def forward(self, batch_data):
 
-        z, pos, batch = torch.squeeze(batch_data.x.long()), batch_data.coords_ca, batch_data.batch
-        pos_n = batch_data.coords_n
-        pos_c = batch_data.coords_c
-        bb_embs = batch_data.bb_embs
-        side_chain_embs = batch_data.side_chain_embs
+        if batch_data.x.shape[1] != 1:
+            device = batch_data.x.device
+            x = batch_data.x.cpu()
+            one_hot_encoded_array = x.numpy()
+            labels = np.argmax(one_hot_encoded_array, axis=1)
+            labels_tensor = torch.from_numpy(labels)
+            x = labels_tensor.view(-1, 1).to(device)
+
+        z, pos, batch = torch.squeeze(x.long()), batch_data.pos, batch_data.batch   # coords_ca
+        # pos_n = batch_data.coords_n
+        # pos_c = batch_data.coords_c
+        # bb_embs = batch_data.bb_embs
+        # side_chain_embs = batch_data.side_chain_embs
 
         device = z.device
 
