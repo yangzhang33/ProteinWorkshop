@@ -5,7 +5,7 @@ import torch_scatter
 from graphein.protein.tensor.data import ProteinBatch
 from torch_geometric.data import Batch
 from torch_geometric.nn.models.dimenet import DimeNetPlusPlus, triplets
-
+from torch_scatter import scatter
 from proteinworkshop.models.graph_encoders.components.blocks import (
     DimeNetEmbeddingBlock,
 )
@@ -32,6 +32,7 @@ class DimeNetPPModel(DimeNetPlusPlus):
         num_output_layers: int = 3,
         act: Union[str, Callable] = "swish",
         readout: str = "add",
+        pretraining: bool = False,
     ):
         """Initializes an instance of the DimeNetPPModel model with the
         provided parameters.
@@ -104,6 +105,7 @@ class DimeNetPPModel(DimeNetPlusPlus):
         self.emb = DimeNetEmbeddingBlock(
             num_radial, hidden_channels, get_activations(act)
         )
+        self.pretraining = pretraining
 
     @property
     def required_batch_attributes(self) -> Set[str]:
@@ -160,7 +162,27 @@ class DimeNetPPModel(DimeNetPlusPlus):
             self.interaction_blocks, self.output_blocks[1:]
         ):
             x = interaction_block(x, rbf, sbf, idx_kj, idx_ji)
-            P += output_block(x, rbf, i)
+            P += output_block(x, rbf, i) 
+        # print(P.shape, 'herererererere') # torch.Size([12158, 128])
+        if self.pretraining == True:
+            pred = P
+            pooled_subgraphs = []
+
+            subgraphs = [batch.subgraphs[i][:batch.subgraph_lengths[i]].tolist() for i in range(len(batch.subgraph_lengths))] # a list
+            # subgraphs = [torch.tensor(subgraph) for subgraph in subgraphs_list] # tensor
+            for i in range(len(subgraphs)):
+                pooled_subgraphs.append(torch.sum(pred[subgraphs[i]], dim=0))
+            pooled_subgraphs = torch.stack(pooled_subgraphs)
+            graph_repr = scatter(pred, batch.batch, dim=0)
+            fused_repr = []
+            for i in range(len(pooled_subgraphs)):
+                fused_repr.append(torch.cat((pooled_subgraphs[i],graph_repr[batch.batch[subgraphs[i][0]]])))
+            fused_repr = torch.stack(fused_repr)
+            return EncoderOutput(
+                {
+                    "fused_repr": fused_repr,
+                }
+            )
 
         return EncoderOutput(
             {

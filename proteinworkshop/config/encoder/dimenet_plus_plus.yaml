@@ -15,3 +15,4 @@ num_after_skip: 2  # Number of layers after the skip connections
 num_output_layers: 3  # Number of output layers
 act: "swish"  # Activation function to use
 readout: "add"  # Global pooling method to be used
+pretraining: False

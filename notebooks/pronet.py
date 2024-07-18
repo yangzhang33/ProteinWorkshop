@@ -1,18 +1,14 @@
-from typing import Set, Union
+"""
+This is an implementation of ProNet model
 
-import torch
-import torch.nn as nn
-from graphein.protein.tensor.data import ProteinBatch
-from torch_geometric.data import Batch
+"""
+
 from torch_geometric.nn import inits, MessagePassing
 from torch_geometric.nn import radius_graph, RGCNConv, GCNConv
 from torch_geometric.nn import global_add_pool,global_mean_pool
 
-# from proteinworkshop.models.graph_encoders.layers.egnn import EGNNLayer
-from proteinworkshop.models.utils import get_aggregation
-from proteinworkshop.types import EncoderOutput
+from features import d_angle_emb, d_theta_phi_emb
 
-from .features import d_angle_emb, d_theta_phi_emb
 from torch_scatter import scatter,scatter_mean
 from torch_sparse import matmul
 
@@ -23,12 +19,14 @@ import torch.nn.functional as F
 
 import numpy as np
 
-num_aa_type = 26 # 26
+
+num_aa_type = 26
 num_side_chain_embs = 8
 num_bb_embs = 6
 
 def swish(x):
     return x * torch.sigmoid(x)
+
 
 class Linear(torch.nn.Module):
     """
@@ -70,6 +68,7 @@ class Linear(torch.nn.Module):
         """"""
         return F.linear(x, self.weight, self.bias)
 
+
 class TwoLinear(torch.nn.Module):
     """
         A layer with two linear modules
@@ -108,7 +107,8 @@ class TwoLinear(torch.nn.Module):
         if self.act:
             x = swish(x)
         return x
-    
+
+
 class EdgeGraphConv(MessagePassing):
     """
         Graph convolution similar to PyG's GraphConv(https://pytorch-geometric.readthedocs.io/en/latest/modules/nn.html#torch_geometric.nn.conv.GraphConv)
@@ -146,6 +146,7 @@ class EdgeGraphConv(MessagePassing):
 
     def message_and_aggregate(self, adj_t, x):
         return matmul(adj_t, x[0], reduce=self.aggr)
+
 
 class InteractionBlock(torch.nn.Module):
     def __init__(
@@ -251,27 +252,28 @@ class InteractionBlock(torch.nn.Module):
             h = self.act(lin(h)) 
         h = self.final(h)
         return h
-    
+
+
 class ProNet(nn.Module):
     r"""
-        The ProNet from the "Learning Protein Representations via Complete 3D Graph Networks" paper.
-    
-    Args:
-        level: (str, optional): The level of protein representations. It could be :obj:`aminoacid`, obj:`backbone`, and :obj:`allatom`. (default: :obj:`aminoacid`)
-        num_blocks (int, optional): Number of building blocks. (default: :obj:`4`)
-        hidden_channels (int, optional): Hidden embedding size. (default: :obj:`128`)
-        out_channels (int, optional): Size of each output sample. (default: :obj:`1`)
-        mid_emb (int, optional): Embedding size used for geometric features. (default: :obj:`64`)
-        num_radial (int, optional): Number of radial basis functions. (default: :obj:`6`)
-        num_spherical (int, optional): Number of spherical harmonics. (default: :obj:`2`)
-        cutoff (float, optional): Cutoff distance for interatomic interactions. (default: :obj:`10.0`)
-        max_num_neighbors (int, optional): Max number of neighbors during graph construction. (default: :obj:`32`)
-        int_emb_layers (int, optional): Number of embedding layers in the interaction block. (default: :obj:`3`)
-        out_layers (int, optional): Number of layers for features after interaction blocks. (default: :obj:`2`)
-        num_pos_emb (int, optional): Number of positional embeddings. (default: :obj:`16`)
-        dropout (float, optional): Dropout. (default: :obj:`0`)
-        data_augment_eachlayer (bool, optional): Data augmentation tricks. If set to :obj:`True`, will add noise to the node features before each interaction block. (default: :obj:`False`)
-        euler_noise (bool, optional): Data augmentation tricks. If set to :obj:`True`, will add noise to Euler angles. (default: :obj:`False`)
+         The ProNet from the "Learning Protein Representations via Complete 3D Graph Networks" paper.
+        
+        Args:
+            level: (str, optional): The level of protein representations. It could be :obj:`aminoacid`, obj:`backbone`, and :obj:`allatom`. (default: :obj:`aminoacid`)
+            num_blocks (int, optional): Number of building blocks. (default: :obj:`4`)
+            hidden_channels (int, optional): Hidden embedding size. (default: :obj:`128`)
+            out_channels (int, optional): Size of each output sample. (default: :obj:`1`)
+            mid_emb (int, optional): Embedding size used for geometric features. (default: :obj:`64`)
+            num_radial (int, optional): Number of radial basis functions. (default: :obj:`6`)
+            num_spherical (int, optional): Number of spherical harmonics. (default: :obj:`2`)
+            cutoff (float, optional): Cutoff distance for interatomic interactions. (default: :obj:`10.0`)
+            max_num_neighbors (int, optional): Max number of neighbors during graph construction. (default: :obj:`32`)
+            int_emb_layers (int, optional): Number of embedding layers in the interaction block. (default: :obj:`3`)
+            out_layers (int, optional): Number of layers for features after interaction blocks. (default: :obj:`2`)
+            num_pos_emb (int, optional): Number of positional embeddings. (default: :obj:`16`)
+            dropout (float, optional): Dropout. (default: :obj:`0`)
+            data_augment_eachlayer (bool, optional): Data augmentation tricks. If set to :obj:`True`, will add noise to the node features before each interaction block. (default: :obj:`False`)
+            euler_noise (bool, optional): Data augmentation tricks. If set to :obj:`True`, will add noise to Euler angles. (default: :obj:`False`)
             
     """
     def __init__(
@@ -291,8 +293,7 @@ class ProNet(nn.Module):
             dropout=0,
             data_augment_eachlayer=False,
             euler_noise = False,
-            pretraining = False,
-            node_embedding = False
+            pretraining = False
     ):
         super(ProNet, self).__init__()
         self.cutoff = cutoff
@@ -303,7 +304,6 @@ class ProNet(nn.Module):
         self.level = level
         self.act = swish
         self.pretraining = pretraining
-        self.node_embedding = node_embedding
         self.feature0 = d_theta_phi_emb(num_radial=num_radial, num_spherical=num_spherical, cutoff=cutoff)
         self.feature1 = d_angle_emb(num_radial=num_radial, num_spherical=num_spherical, cutoff=cutoff)
 
@@ -364,45 +364,18 @@ class ProNet(nn.Module):
         E = torch.cat((torch.cos(angles), torch.sin(angles)), -1)
         return E
 
-    @property
-    def required_batch_attributes(self) -> Set[str]:
-        """Required batch attributes for this encoder.
+    def forward(self, batch_data):
 
-        - ``x``: Node features (shape: :math:`(n, d)`)
-        - ``pos``: Node positions (shape: :math:`(n, 3)`)
-        - ``edge_index``: Edge indices (shape: :math:`(2, e)`)
-        - ``batch``: Batch indices (shape: :math:`(n,)`)
-
-        :return: Set of required batch attributes
-        :rtype: Set[str]
-        """
-        return {"x", "pos", "edge_index", "batch"}
-
-    def forward(self, batch_data: Union[Batch, ProteinBatch]) -> EncoderOutput:
-        # conver one-hot encoding back to its class labels
-        if batch_data.x.shape[1] != 1:
-            device = batch_data.x.device
-            x = batch_data.x.cpu()
-            one_hot_encoded_array = x.numpy()
-            labels = np.argmax(one_hot_encoded_array, axis=1)
-            labels_tensor = torch.from_numpy(labels)
-            x = labels_tensor.view(-1, 1).to(device)
-
-        z, pos, batch = torch.squeeze(x.long()), batch_data.pos, batch_data.batch   # coords_ca
-        # print('batch:', batch_data)
-        # print(x.shape, z.shape)
-        # print(z.shape, pos.shape, batch.shape)
-        # z, pos, batch = torch.squeeze(batch_data.x.long()), batch_data.pos, batch_data.batch
-        # pos_n = batch_data.coords_n
-        # pos_c = batch_data.coords_c
-        # bb_embs = batch_data.bb_embs
-        # side_chain_embs = batch_data.side_chain_embs
+        z, pos, batch = torch.squeeze(batch_data.x.long()), batch_data.coords_ca, batch_data.batch
+        pos_n = batch_data.coords_n
+        pos_c = batch_data.coords_c
+        bb_embs = batch_data.bb_embs
+        side_chain_embs = batch_data.side_chain_embs
 
         device = z.device
+
         if self.level == 'aminoacid':
-            # print(z.shape)
             x = self.embedding(z)
-            # print(x.shape)
         elif self.level == 'backbone':
             x = torch.cat([torch.squeeze(F.one_hot(z, num_classes=num_aa_type).float()), bb_embs], dim = 1)
             x = self.embedding(x)
@@ -411,17 +384,17 @@ class ProNet(nn.Module):
             x = self.embedding(x)
         else:
             print('No supported model!')
+
         #check if graph exists
         if "edge_index" not in batch_data:
             edge_index = radius_graph(pos, r=self.cutoff, batch=batch, max_num_neighbors=self.max_num_neighbors).to(device) #maybe add knn graphs
         else:
-            edge_index = batch_data.edge_index.to(device) # to add
-            # edge_index = radius_graph(pos, r=self.cutoff, batch=batch, max_num_neighbors=self.max_num_neighbors).to(device) #maybe add knn graphs
-
+            edge_index = batch_data.edge_index.to(device)
+            
         pos_emb = self.pos_emb(edge_index, self.num_pos_emb)
         j, i = edge_index
 
-                # Calculate distances.
+        # Calculate distances.
         dist = (pos[i] - pos[j]).norm(dim=1)
         
         num_nodes = len(z)
@@ -485,66 +458,96 @@ class ProNet(nn.Module):
             tau = torch.atan2(b, a)
 
             feature1 = self.feature1(dist, tau)
+
         # Interaction blocks.
         for interaction_block in self.interaction_blocks:
-            # print(x.shape)
             if self.data_augment_eachlayer:
                 # add gaussian noise to features
                 gaussian_noise = torch.clip(torch.empty(x.shape).to(device).normal_(mean=0.0, std=0.025), min=-0.1, max=0.1)
                 x += gaussian_noise
-            # print(x.shape, 'in main class')
             x = interaction_block(x, feature0, feature1, pos_emb, edge_index, batch)
-        # print(x.shape, 'hererererere') # torch.Size([12158, 128])
+
+
         if(self.pretraining == True):
-           
-            pred = x
-            pooled_subgraphs = []
-
-            subgraphs = [batch_data.subgraphs[i][:batch_data.subgraph_lengths[i]].tolist() for i in range(len(batch_data.subgraph_lengths))] # a list
-            # subgraphs = [torch.tensor(subgraph) for subgraph in subgraphs_list] # tensor
-            for i in range(len(subgraphs)):
-                pooled_subgraphs.append(torch.sum(pred[subgraphs[i]], dim=0))
-            pooled_subgraphs = torch.stack(pooled_subgraphs)
-            graph_repr = scatter(pred, batch_data.batch, dim=0)
-            fused_repr = []
-            for i in range(len(pooled_subgraphs)):
-                fused_repr.append(torch.cat((pooled_subgraphs[i],graph_repr[batch_data.batch[subgraphs[i][0]]])))
-            fused_repr = torch.stack(fused_repr)
-            return EncoderOutput(
-                {
-                    "fused_repr": fused_repr,
-                }
-            )
-
-        if (self.node_embedding == True):
-            return EncoderOutput(
-                {
-                    "node_embedding": x, # y (n nodes, d)
-                }
-            ) 
+            return x #return node representations and edge_index       # node embedding, (n*d)
         
+
         y = scatter(x, batch, dim=0)
 
         for lin in self.lins_out:
             y = self.relu(lin(y))
             y = self.dropout(y)        
         y = self.lin_out(y)
-        # return y
-        return EncoderOutput(
-            {
-                "graph_embedding": y, # y (n graphs, d)
-            }
-        )
+        return y
+
+    @property
+    def num_params(self):
+        return sum(p.numel() for p in self.parameters())
 
 
-if __name__ == "__main__":
-    import hydra
-    import omegaconf
 
-    from proteinworkshop import constants
 
-    cfg = omegaconf.OmegaConf.load(
-        constants.SRC_PATH / "config" / "encoder" / "egnn.yaml"
-    )
-    enc = hydra.utils.instantiate(cfg)
-    print(enc)
+class RGCN(nn.Module):
+    def __init__(self, input_dim, hidden_dim=512, n_layers=6, out_layers=2, emb_dim=512, dropout=0.2, num_relation=7, pretraining=True):
+        super(RGCN, self).__init__()
+        
+        self.pretraining = True
+        self.n_layers = n_layers
+        self.output_dim = emb_dim
+
+        self.fc0 = nn.Linear(input_dim, hidden_dim)
+        self.batchnorm_final = nn.BatchNorm1d(hidden_dim)
+        
+        self.batch_norms = nn.ModuleList()
+        self.batch_norms.append(nn.BatchNorm1d(hidden_dim))
+        lst = list()
+        
+        lst.append(RGCNConv(hidden_dim, hidden_dim, num_relations=num_relation))
+        
+        for i in range(n_layers-1):
+            lst.append(RGCNConv(hidden_dim,hidden_dim, num_relations=num_relation))
+        self.conv = nn.ModuleList(lst)
+      
+        self.lins_out = torch.nn.ModuleList()
+        for _ in range(out_layers-1):
+            self.lins_out.append(Linear(hidden_dim, hidden_dim))
+        
+        self.lin_out = nn.Linear(hidden_dim, self.output_dim)
+      
+        self.dropout = nn.Dropout(p=dropout)
+        self.relu = nn.LeakyReLU()
+        self.batchnorm = nn.BatchNorm1d(hidden_dim)
+
+    def forward(self, batch):
+        #construct pyg edge index shape (2, num_edges) from edge_list
+        # x = self.relu(self.fc0(x))
+        
+        # for i in range(self.n_layers):
+        #     x = self.conv[i](x, edge_index, edge_type)
+
+        x, edge_index, edge_type = batch.x, batch.edge_index, batch.edge_type
+        x = self.extract_node_repr(x,edge_index,edge_type)
+
+        if(self.pretraining == True):
+            return x #return node representations and edge_index       
+        
+        out = global_add_pool(x, batch)
+
+        out = self.batchnorm(out)
+
+        for lin in self.lins_out:
+            out = self.relu(lin(out))
+            out = self.dropout(out)        
+ 
+        out = self.lin_out(out)
+        return out.unsqueeze(1)
+    
+    def extract_node_repr(self,x,edge_index,edge_type):
+        x = self.relu(self.fc0(x))
+        for i in range(self.n_layers):
+            x = self.relu(self.conv[i](x, edge_index, edge_type))
+            x = self.dropout(x)
+
+        return x
+
+    
