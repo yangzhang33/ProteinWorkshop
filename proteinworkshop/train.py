@@ -192,14 +192,24 @@ def train_model(
                 dataloader = datamodule.test_dataloader(split)
                 trainer.logger = False
                 log.info(f"Testing on {split} ({i+1} / {len(splits)})...")
-                results = trainer.test(
-                    model=model, dataloaders=dataloader, ckpt_path="best"
-                )[0]
+                if cfg.get("task_name") == "test":
+                    results = trainer.test(
+                        model=model, dataloaders=dataloader, ckpt_path=cfg.ckpt_path_test
+                    )[0]
+                else:
+                    results = trainer.test(
+                        model=model, dataloaders=dataloader, ckpt_path="best"
+                    )[0]
                 results = {f"{k}/{split}": v for k, v in results.items()}
                 log.info(f"{split}: {results}")
                 wandb_logger.log_metrics(results)
         else:
-            trainer.test(model=model, datamodule=datamodule, ckpt_path="best")
+            if cfg.get("task_name") == "test":
+                results = trainer.test(
+                    model=model, dataloaders=dataloader, ckpt_path=cfg.ckpt_path_test
+                )[0]
+            else:
+                trainer.test(model=model, datamodule=datamodule, ckpt_path="best")
 
 
 # Load hydra config from yaml files and command line arguments.

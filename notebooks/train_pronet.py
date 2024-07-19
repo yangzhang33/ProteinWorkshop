@@ -399,8 +399,8 @@ for epoch in range(start_epoch, args.epochs+1):
     
     # t_end_test = time.perf_counter() 
 
-    if not save_dir == "" and not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+    # if not save_dir == "" and not os.path.exists(save_dir):
+    #     os.makedirs(save_dir)
 
     t_end = time.perf_counter()
     print('Train: Loss:{:.6f}, time:{}, train_time:{}'.format(
