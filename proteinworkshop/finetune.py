@@ -161,7 +161,7 @@ def train_model(
         log.info(f"Model output: {out}")
         del batch, out
 ###############################################
-    ckpt_path = '/home/zhang/Projects/3d/proteinworkshop_checkpoints/outputs_pronet_pretraining_best@2/checkpoints/epoch_002_filtered.ckpt'
+    ckpt_path = "/home/zhang/Projects/3d/proteinworkshop_checkpoints/outputs_pronet_pretraining_best@2/checkpoints/epoch_002_filtered.ckpt"
     log.info(f"Loading weights from checkpoint {ckpt_path}...")
     state_dict = torch.load(ckpt_path)["state_dict"]
 
@@ -174,11 +174,6 @@ def train_model(
     err = model.encoder.load_state_dict(encoder_weights, strict=False)
     # model.encoder.lin_out = torch.nn.Linear(128, 1195) # here
     log.warning(f"Error loading encoder weights: {err}")
-
-    # decoder
-    log.info("Freezing decoder!")
-    for param in model.decoder.parameters():
-        param.requires_grad = False
 
 ##################################################
     object_dict = {
