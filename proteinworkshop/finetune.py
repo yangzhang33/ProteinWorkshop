@@ -1,14 +1,20 @@
-"""Entry point for finetuning a pretrained model."""
-import collections
+"""
+Main module to load and train the model. This should be the program entry
+point.
+"""
 import copy
 import sys
-from typing import List
+from typing import List, Optional
+import collections
 
 import graphein
 import hydra
 import lightning as L
 import lovely_tensors as lt
 import torch
+import torch.nn as nn
+import torch_geometric
+from graphein.protein.tensor.dataloader import ProteinDataLoader
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.loggers import Logger
 from loguru import logger as log
@@ -26,36 +32,117 @@ graphein.verbose(False)
 lt.monkey_patch()
 
 
-def finetune(cfg: DictConfig):
-    assert cfg.ckpt_path, "No checkpoint path provided."
+def _num_training_steps(
+    train_dataset: ProteinDataLoader, trainer: L.Trainer
+) -> int:
+    """
+    Returns total training steps inferred from datamodule and devices.
 
+    :param train_dataset: Training dataloader
+    :type train_dataset: ProteinDataLoader
+    :param trainer: Lightning trainer
+    :type trainer: L.Trainer
+    :return: Total number of training steps
+    :rtype: int
+    """
+    if trainer.max_steps != -1:
+        return trainer.max_steps
+
+    dataset_size = (
+        trainer.limit_train_batches
+        if trainer.limit_train_batches not in {0, 1}
+        else len(train_dataset) * train_dataset.batch_size
+    )
+
+    log.info(f"Dataset size: {dataset_size}")
+
+    num_devices = max(1, trainer.num_devices)
+    effective_batch_size = (
+        train_dataset.batch_size
+        * trainer.accumulate_grad_batches
+        * num_devices
+    )
+    return (dataset_size // effective_batch_size) * trainer.max_epochs
+
+
+def train_model(
+    cfg: DictConfig, encoder: Optional[nn.Module] = None
+):  # sourcery skip: extract-method
+    """
+    Trains a model from a config.
+
+    If ``encoder`` is provided, it is used instead of the one specified in the
+    config.
+
+    1. The datamodule is instantiated from ``cfg.dataset.datamodule``.
+    2. The callbacks are instantiated from ``cfg.callbacks``.
+    3. The logger is instantiated from ``cfg.logger``.
+    4. The trainer is instantiated from ``cfg.trainer``.
+    5. (Optional) If the config contains a scheduler, the number of training steps is
+         inferred from the datamodule and devices and set in the scheduler.
+    6. The model is instantiated from ``cfg.model``.
+    7. The datamodule is setup and a dummy forward pass is run to initialise
+    lazy layers for accurate parameter counts.
+    8. Hyperparameters are logged to wandb if a logger is present.
+    9. The model is compiled if ``cfg.compile`` is True.
+    10. The model is trained if ``cfg.task_name`` is ``"train"``.
+    11. The model is tested if ``cfg.test`` is ``True``.
+
+    :param cfg: DictConfig containing the config for the experiment
+    :type cfg: DictConfig
+    :param encoder: Optional encoder to use instead of the one specified in
+        the config
+    :type encoder: Optional[nn.Module]
+    """
+    # set seed for random number generators in pytorch, numpy and python.random
     L.seed_everything(cfg.seed)
 
-    log.info("Instantiating datamodule:... ")
+    log.info(
+        f"Instantiating datamodule: <{cfg.dataset.datamodule._target_}..."
+    )
     datamodule: L.LightningDataModule = hydra.utils.instantiate(
         cfg.dataset.datamodule
     )
-
-    log.info("Instantiating model:... ")
-    model: L.LightningModule = BenchMarkModel(cfg)
 
     log.info("Instantiating callbacks...")
     callbacks: List[Callback] = utils.callbacks.instantiate_callbacks(
         cfg.get("callbacks")
     )
 
-    log.info("Instantiating loggers:... ")
+    log.info("Instantiating loggers...")
     logger: List[Logger] = utils.loggers.instantiate_loggers(cfg.get("logger"))
 
-    log.info(f"Instantiating trainer <{cfg.trainer._target_}>")
+    log.info("Instantiating trainer...")
     trainer: L.Trainer = hydra.utils.instantiate(
         cfg.trainer, callbacks=callbacks, logger=logger
     )
 
-    # Initialize lazy layers for parameter counts
-    # This is also required for the model to be able to load weights
-    # Otherwise lazy layers will have their parameters reset
-    # https://pytorch.org/docs/stable/generated/torch.nn.modules.lazy.LazyModuleMixin.html#torch.nn.modules.lazy.LazyModuleMixin
+    if cfg.get("scheduler"):
+        if (
+            cfg.scheduler.scheduler._target_
+            == "flash.core.optimizers.LinearWarmupCosineAnnealingLR"
+            and cfg.scheduler.interval == "step"
+        ):
+            datamodule.setup()  # type: ignore
+            num_steps = _num_training_steps(
+                datamodule.train_dataloader(), trainer
+            )
+            log.info(
+                f"Setting number of training steps in scheduler to: {num_steps}"
+            )
+            cfg.scheduler.scheduler.warmup_epochs = (
+                num_steps / trainer.max_epochs
+            )
+            cfg.scheduler.scheduler.max_epochs = num_steps
+            log.info(cfg.scheduler)
+
+    log.info("Instantiating model...")
+    model: L.LightningModule = BenchMarkModel(cfg)
+
+    if encoder is not None:
+        log.info(f"Setting user-defined encoder {encoder}...")
+        model.encoder = encoder
+
     log.info("Initializing lazy layers...")
     with torch.no_grad():
         datamodule.setup(stage="lazy_init")  # type: ignore
@@ -63,45 +150,37 @@ def finetune(cfg: DictConfig):
         log.info(f"Unfeaturized batch: {batch}")
         batch = model.featurise(batch)
         log.info(f"Featurized batch: {batch}")
-        out = model.forward(batch)
+        log.info(f"Example labels: {model.get_labels(batch)}")
+        # Check batch has required attributes
+        for attr in model.encoder.required_batch_attributes:  # type: ignore
+            if not hasattr(batch, attr):
+                raise AttributeError(
+                    f"Batch {batch} does not have required attribute: {attr} ({model.encoder.required_batch_attributes})"
+                )
+        out = model(batch)
         log.info(f"Model output: {out}")
         del batch, out
+###############################################
+    ckpt_path = '/home/zhang/Projects/3d/proteinworkshop_checkpoints/outputs_pronet_pretraining_best@2/checkpoints/epoch_002_filtered.ckpt'
+    log.info(f"Loading weights from checkpoint {ckpt_path}...")
+    state_dict = torch.load(ckpt_path)["state_dict"]
 
-    # We only want to load weights
-    if cfg.ckpt_path != "none":
-        log.info(f"Loading weights from checkpoint {cfg.ckpt_path}...")
-        state_dict = torch.load(cfg.ckpt_path)["state_dict"]
+    # encoder
+    encoder_weights = collections.OrderedDict()
+    for k, v in state_dict.items():
+        if k.startswith("encoder"):
+            encoder_weights[k.replace("encoder.", "")] = v
+    log.info(f"Loading encoder weights: {encoder_weights}")
+    err = model.encoder.load_state_dict(encoder_weights, strict=False)
+    # model.encoder.lin_out = torch.nn.Linear(128, 1195) # here
+    log.warning(f"Error loading encoder weights: {err}")
 
-        if cfg.finetune.encoder.load_weights:
-            encoder_weights = collections.OrderedDict()
-            for k, v in state_dict.items():
-                if k.startswith("encoder"):
-                    encoder_weights[k.replace("encoder.", "")] = v
-            log.info(f"Loading encoder weights: {encoder_weights}")
-            err = model.encoder.load_state_dict(encoder_weights, strict=False)
-            log.warning(f"Error loading encoder weights: {err}")
+    # decoder
+    log.info("Freezing decoder!")
+    for param in model.decoder.parameters():
+        param.requires_grad = False
 
-        if cfg.finetune.decoder.load_weights:
-            decoder_weights = collections.OrderedDict()
-            for k, v in state_dict.items():
-                if k.startswith("decoder"):
-                    decoder_weights[k.replace("decoder.", "")] = v
-            log.info(f"Loading decoder weights: {decoder_weights}")
-            err = model.decoder.load_state_dict(decoder_weights, strict=False)
-            log.warning(f"Error loading decoder weights: {err}")
-
-        if cfg.finetune.encoder.freeze:
-            log.info("Freezing encoder!")
-            for param in model.encoder.parameters():
-                param.requires_grad = False
-
-        if cfg.finetune.decoder.freeze:
-            log.info("Freezing decoder!")
-            for param in model.decoder.parameters():
-                param.requires_grad = False
-    else:
-        log.info("No checkpoint path provided, skipping loading weights!")
-
+##################################################
     object_dict = {
         "cfg": cfg,
         "datamodule": datamodule,
@@ -117,61 +196,68 @@ def finetune(cfg: DictConfig):
 
     if cfg.get("compile"):
         log.info("Compiling model!")
-        model = torch.compile(model)  # type: ignore
+        model = torch_geometric.compile(model, dynamic=True)
 
-    log.info("Starting finetuning!")
-    trainer.fit(model=model, datamodule=datamodule)
-
-    metric_dict = trainer.callback_metrics
+    if cfg.get("task_name") == "train":
+        log.info("Starting training!")
+        trainer.fit(
+            model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path")
+        )
 
     if cfg.get("test"):
         log.info("Starting testing!")
-        # Run test on all splits if using fold_classification dataset
-        if (
-            cfg.dataset.datamodule._target_
-            == "proteinworkshop.datasets.fold_classification.FoldClassificationDataModule"
-        ):
-            splits = ["fold", "family", "superfamily"]
+        if hasattr(datamodule, "test_dataset_names"):
+            splits = datamodule.test_dataset_names
             wandb_logger = copy.deepcopy(trainer.logger)
-            for split in splits:
-                dataloader = datamodule.get_test_loader(split)
+            for i, split in enumerate(splits):
+                dataloader = datamodule.test_dataloader(split)
                 trainer.logger = False
-                results = trainer.test(
-                    model=model, dataloaders=dataloader, ckpt_path="best"
-                )[0]
+                log.info(f"Testing on {split} ({i+1} / {len(splits)})...")
+                if cfg.get("task_name") == "test":
+                    results = trainer.test(
+                        model=model, dataloaders=dataloader, ckpt_path=cfg.ckpt_path_test
+                    )[0]
+                else:
+                    results = trainer.test(
+                        model=model, dataloaders=dataloader, ckpt_path="best"
+                    )[0]
                 results = {f"{k}/{split}": v for k, v in results.items()}
                 log.info(f"{split}: {results}")
                 wandb_logger.log_metrics(results)
         else:
-            trainer.test(model=model, datamodule=datamodule, ckpt_path="best")
+            if cfg.get("task_name") == "test":
+                results = trainer.test(
+                    model=model, dataloaders=dataloader, ckpt_path=cfg.ckpt_path_test
+                )[0]
+            else:
+                trainer.test(model=model, datamodule=datamodule, ckpt_path="best")
 
-    return metric_dict, object_dict
 
-
+# Load hydra config from yaml files and command line arguments.
 @hydra.main(
     version_base="1.3",
     config_path=str(constants.HYDRA_CONFIG_PATH),
-    config_name="finetune",
+    config_name="train",
 )
 def _main(cfg: DictConfig) -> None:
-    # apply extra utilities
-    # (e.g. ask for tags if none are provided in cfg, print cfg tree, etc.)
+    """Load and validate the hydra config."""
     utils.extras(cfg)
     cfg = config.validate_config(cfg)
-    finetune(cfg)
+    train_model(cfg)
 
 
-def _script_main(args):
+def _script_main(args: List[str]) -> None:
     """
     Provides an entry point for the script dispatcher.
 
     Sets the sys.argv to the provided args and calls the main train function.
     """
-    register_custom_omegaconf_resolvers()
     sys.argv = args
+    register_custom_omegaconf_resolvers()
     _main()
 
 
 if __name__ == "__main__":
+    # pylint: disable=no-value-for-parameter
     register_custom_omegaconf_resolvers()
-    _main()
+    _main()  # type: ignore

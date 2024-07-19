@@ -252,6 +252,19 @@ class InteractionBlock(torch.nn.Module):
         h = self.final(h)
         return h
     
+
+def inspect_tensor(tensor, name="Tensor"):
+
+    min_val = tensor.min().item()
+    max_val = tensor.max().item()
+    nan_count = torch.isnan(tensor).sum().item()
+    has_nan = nan_count > 0
+
+    print(f"{name} - min: {min_val}, max: {max_val}, NaNs: {nan_count}")
+
+    if has_nan:
+        print(f"Warning: {name} contains NaN values!")
+
 class ProNet(nn.Module):
     r"""
         The ProNet from the "Learning Protein Representations via Complete 3D Graph Networks" paper.
@@ -379,6 +392,7 @@ class ProNet(nn.Module):
         return {"x", "pos", "edge_index", "batch"}
 
     def forward(self, batch_data: Union[Batch, ProteinBatch]) -> EncoderOutput:
+        # print('===== New ========================')
         # conver one-hot encoding back to its class labels
         if batch_data.x.shape[1] != 1:
             device = batch_data.x.device
@@ -387,8 +401,10 @@ class ProNet(nn.Module):
             labels = np.argmax(one_hot_encoded_array, axis=1)
             labels_tensor = torch.from_numpy(labels)
             x = labels_tensor.view(-1, 1).to(device)
-
+        # print(batch_data)
         z, pos, batch = torch.squeeze(x.long()), batch_data.pos, batch_data.batch   # coords_ca
+        # inspect_tensor(z, name="z")
+        # inspect_tensor(pos, name="pos")
         # print('batch:', batch_data)
         # print(x.shape, z.shape)
         # print(z.shape, pos.shape, batch.shape)
@@ -402,6 +418,7 @@ class ProNet(nn.Module):
         if self.level == 'aminoacid':
             # print(z.shape)
             x = self.embedding(z)
+            # inspect_tensor(x, name="x")
             # print(x.shape)
         elif self.level == 'backbone':
             x = torch.cat([torch.squeeze(F.one_hot(z, num_classes=num_aa_type).float()), bb_embs], dim = 1)
@@ -415,15 +432,20 @@ class ProNet(nn.Module):
         if "edge_index" not in batch_data:
             edge_index = radius_graph(pos, r=self.cutoff, batch=batch, max_num_neighbors=self.max_num_neighbors).to(device) #maybe add knn graphs
         else:
+            # print('using edge index predefine')
             edge_index = batch_data.edge_index.to(device) # to add
             # edge_index = radius_graph(pos, r=self.cutoff, batch=batch, max_num_neighbors=self.max_num_neighbors).to(device) #maybe add knn graphs
 
         pos_emb = self.pos_emb(edge_index, self.num_pos_emb)
+        # inspect_tensor(pos_emb, name="pos_emb")
         j, i = edge_index
-
+        # print('edge_index', edge_index)
+        # print('j:', j)
+        # print('i:', i)
                 # Calculate distances.
         dist = (pos[i] - pos[j]).norm(dim=1)
-        
+        # print(torch.any(dist == 0).item())
+        # inspect_tensor(dist, name="dist")
         num_nodes = len(z)
 
         # Calculate angles theta and phi.
@@ -439,9 +461,10 @@ class ProNet(nn.Module):
         a = (plane1 * plane2).sum(dim=-1)
         b = (torch.cross(plane1, plane2) * (pos[refi0] - pos[i])).sum(dim=-1) / ((pos[refi0] - pos[i]).norm(dim=-1))
         phi = torch.atan2(b, a)
-
+        # inspect_tensor(theta, name="theta")
+        # inspect_tensor(phi, name="phi")
         feature0 = self.feature0(dist, theta, phi)
-
+        # inspect_tensor(feature0, name="feature0")
         if self.level == 'backbone' or self.level == 'allatom':
             # Calculate Euler angles.
             Or1_x = pos_n[i] - pos[i]
@@ -485,6 +508,7 @@ class ProNet(nn.Module):
             tau = torch.atan2(b, a)
 
             feature1 = self.feature1(dist, tau)
+            # inspect_tensor(feature1, name="feature1")
         # Interaction blocks.
         for interaction_block in self.interaction_blocks:
             # print(x.shape)
@@ -494,6 +518,7 @@ class ProNet(nn.Module):
                 x += gaussian_noise
             # print(x.shape, 'in main class')
             x = interaction_block(x, feature0, feature1, pos_emb, edge_index, batch)
+        # inspect_tensor(x, name="interaction_block")
         # print(x.shape, 'hererererere') # torch.Size([12158, 128])
         if(self.pretraining == True):
            
@@ -527,8 +552,10 @@ class ProNet(nn.Module):
 
         for lin in self.lins_out:
             y = self.relu(lin(y))
-            y = self.dropout(y)        
+            y = self.dropout(y)    
+        # inspect_tensor(y, name="y")    
         y = self.lin_out(y)
+        # inspect_tensor(y, name="lin_out") 
         # return y
         return EncoderOutput(
             {

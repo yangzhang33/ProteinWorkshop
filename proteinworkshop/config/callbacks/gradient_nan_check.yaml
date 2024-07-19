@@ -1,0 +1,2 @@
+gradient_nan_check:
+  _target_: proteinworkshop.config.callbacks.my_callbacks.GradientCheckCallback

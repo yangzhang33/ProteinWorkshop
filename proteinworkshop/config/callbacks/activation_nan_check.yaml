@@ -1,0 +1,2 @@
+activation_nan_check:
+  _target_: proteinworkshop.config.callbacks.my_callbacks.ActivationNanCheckCallback
