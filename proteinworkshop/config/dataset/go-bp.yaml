@@ -2,7 +2,7 @@ datamodule:
   _target_: proteinworkshop.datasets.go.GeneOntologyDataset
   path: ${env.paths.data}/GeneOntology/ # Directory where the dataset is stored
   pdb_dir: ${env.paths.data}/pdb/ # Directory where raw PDB/mmtf files are stored
-  format: "mmtf" # Format of the raw PDB/MMTF files
+  format: "pdb" # Format of the raw PDB/MMTF files
   batch_size: 32 # Batch size for dataloader
   dataset_fraction: 1.0 # Fraction of the dataset to use
   shuffle_labels: False # Whether to shuffle labels for permutation testing
