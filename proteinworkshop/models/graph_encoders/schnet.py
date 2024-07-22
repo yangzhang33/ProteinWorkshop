@@ -5,6 +5,7 @@ import torch_scatter
 from graphein.protein.tensor.data import ProteinBatch
 from torch_geometric.data import Batch
 from torch_geometric.nn.models import SchNet
+from torch_scatter import scatter
 
 from proteinworkshop.types import EncoderOutput
 
@@ -24,6 +25,7 @@ class SchNetModel(SchNet):
         mean: Optional[float] = None,
         std: Optional[float] = None,
         atomref: Optional[torch.Tensor] = None,
+        pretraining = False,
     ):
         """
         Initializes an instance of the SchNetModel class with the provided
@@ -69,6 +71,7 @@ class SchNetModel(SchNet):
         self.embedding = torch.nn.LazyLinear(hidden_channels)
         # Overwrite atom embedding and final predictor
         self.lin2 = torch.nn.LazyLinear(out_dim)
+        self.pretraining = pretraining
 
     @property
     def required_batch_attributes(self) -> Set[str]:
@@ -112,7 +115,26 @@ class SchNetModel(SchNet):
         h = self.lin1(h)
         h = self.act(h)
         h = self.lin2(h)
+        # print(h.shape) # torch.Size([5381, 32])
+        if self.pretraining:
+            pred = h
+            pooled_subgraphs = []
 
+            subgraphs = [batch.subgraphs[i][:batch.subgraph_lengths[i]].tolist() for i in range(len(batch.subgraph_lengths))] # a list
+            # subgraphs = [torch.tensor(subgraph) for subgraph in subgraphs_list] # tensor
+            for i in range(len(subgraphs)):
+                pooled_subgraphs.append(torch.sum(pred[subgraphs[i]], dim=0))
+            pooled_subgraphs = torch.stack(pooled_subgraphs)
+            graph_repr = scatter(pred, batch.batch, dim=0)
+            fused_repr = []
+            for i in range(len(pooled_subgraphs)):
+                fused_repr.append(torch.cat((pooled_subgraphs[i],graph_repr[batch.batch[subgraphs[i][0]]])))
+            fused_repr = torch.stack(fused_repr)
+            return EncoderOutput(
+                {
+                    "fused_repr": fused_repr,
+                }
+            )
         return EncoderOutput(
             {
                 "node_embedding": h,

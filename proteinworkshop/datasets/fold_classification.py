@@ -191,7 +191,7 @@ class FoldClassificationDataModule(ProteinDataModule):
         return ProteinDataLoader(
             self.train_ds,
             batch_size=self.batch_size,
-            shuffle=False, # here
+            shuffle=True, # here
             pin_memory=self.pin_memory,
             num_workers=self.num_workers,
         )

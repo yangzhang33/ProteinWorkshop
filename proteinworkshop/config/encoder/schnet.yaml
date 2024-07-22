@@ -11,3 +11,4 @@ dipole: False
 mean: null
 std: null
 atomref: null
+pretraining: False
