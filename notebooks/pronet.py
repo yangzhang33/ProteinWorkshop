@@ -365,7 +365,7 @@ class ProNet(nn.Module):
         return E
 
     def forward(self, batch_data):
-
+        # print(batch_data) # DataProteinBatch(fill_value=1e-05, atom_list=[37], coords=[9459, 37, 3], residues=[32], id=[32], residue_id=[32], residue_type=[9459], chains=[9459], graph_y=[32], x=[9459], amino_acid_one_hot=[9459, 23], seq_pos=[9459, 1], batch=[9459], ptr=[33])
         if batch_data.x.shape[1] != 1:
             device = batch_data.x.device
             x = batch_data.x.cpu()
@@ -374,7 +374,12 @@ class ProNet(nn.Module):
             labels_tensor = torch.from_numpy(labels)
             x = labels_tensor.view(-1, 1).to(device)
 
+        # z, pos, batch = torch.squeeze(batch_data.x.long()), batch_data.coords_ca, batch_data.batch   # coords_ca
+        # print(batch_data) # DataBatch(side_chain_embs=[9933, 8], bb_embs=[9933, 6], x=[9933, 1], coords_ca=[9933, 3], coords_n=[9933, 3], coords_c=[9933, 3], id=[32], y=[32], batch=[9933], ptr=[33])
+        # print(z, pos, batch) # tensor[9933] i64 78Kb x∈[0, 19] μ=9.593 σ=5.672 cuda:0 tensor[9933, 3] n=29799 (0.1Mb) x∈[-59.320, 59.875] μ=0.547 σ=15.060 cuda:0 tensor[9933] i64 78Kb x∈[0, 31] μ=15.746 σ=9.295 cuda:0
         z, pos, batch = torch.squeeze(x.long()), batch_data.pos, batch_data.batch   # coords_ca
+        # print(batch_data) # DataProteinBatch(fill_value=1e-05, atom_list=[37], coords=[8291, 37, 3], residues=[32], id=[32], residue_id=[32], residue_type=[8291], chains=[8291], graph_y=[32], x=[8291, 23], amino_acid_one_hot=[8291, 23], seq_pos=[8291, 1], batch=[8291], ptr=[33], pos=[8291, 3], edge_index=[2, 132656], edge_type=[1, 132656], num_relation=1, edge_attr=[132656, 1])
+        # print(z, pos, batch) # tensor[8291] i64 65Kb x∈[0, 22] μ=10.421 σ=6.266 cuda:0 tensor[8291, 3] n=24873 (97Kb) x∈[-93.259, 188.796] μ=17.546 σ=39.955 cuda:0 tensor[8291] i64 65Kb x∈[0, 31] μ=16.022 σ=9.069 cuda:0
         # pos_n = batch_data.coords_n
         # pos_c = batch_data.coords_c
         # bb_embs = batch_data.bb_embs

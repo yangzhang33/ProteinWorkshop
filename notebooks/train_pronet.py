@@ -22,33 +22,27 @@ hydra.initialize(rel_path, version_base=version_base)
 cfg = hydra.compose(
     config_name="train",
     overrides=[
-        "encoder=pronet",
-        "encoder.level='aminoacid'",
-        "encoder.num_blocks=4",
-        "encoder.hidden_channels=128",
-        "encoder.out_channels=1195",
-        "encoder.mid_emb=64",
-        "encoder.num_radial=6",
-        "encoder.num_spherical=2",
-        "encoder.cutoff=10.0",
-        "encoder.max_num_neighbors=32",
-        "encoder.int_emb_layers=3",
-        "encoder.out_layers=2",
-        "encoder.num_pos_emb=16",
-        "encoder.dropout=0.3",
-        "encoder.data_augment_eachlayer=True",
-        "encoder.euler_noise=False",
+        "encoder=schnet",
+        "encoder.hidden_channels=512", # Number of channels in the hidden layers
+        "encoder.out_dim=32", # Output dimension of the model
+        "encoder.num_layers=6", # Number of filters used in convolutional layers
+        "encoder.num_filters=128", # Number of convolutional layers in the model
+        "encoder.num_gaussians=50", # Number of Gaussian functions used for radial filters
+        "encoder.cutoff=10.0", # Cutoff distance for interactions
+        "encoder.max_num_neighbors=32", # Maximum number of neighboring atoms to consider
+        "encoder.readout=add", # Global pooling method to be used
+        "encoder.dipole=False",
+        "encoder.mean=null",
+        "encoder.std=null",
+        "encoder.atomref=null",
         "encoder.pretraining=False",
-        "encoder.node_embedding=False",
-
-        "decoder.graph_label.dummy=True",
 
         "task=multiclass_graph_classification",
-        "dataset=fold_family",
+        "dataset=ec_reaction",
         "dataset.datamodule.batch_size=32",
         "features=ca_base", 
         "+aux_task=none",
-        
+        "+ckpt_path=/home/zhang/Projects/3d/ProteinWorkshop/notebooks/outputs/checkpoints/last.ckpt",
         "trainer.max_epochs=400",
         "optimiser=adam",
         "optimiser.optimizer.lr=5e-4",
@@ -81,6 +75,6 @@ for key in cfg.keys():
     print(key)
     print(cfg[key])
 
-from proteinworkshop.finetune import train_model
+from proteinworkshop.train import train_model
 
 train_model(cfg)

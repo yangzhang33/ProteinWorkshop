@@ -205,9 +205,8 @@ def train_model(
                 wandb_logger.log_metrics(results)
         else:
             if cfg.get("task_name") == "test":
-                results = trainer.test(
-                    model=model, dataloaders=dataloader, ckpt_path=cfg.ckpt_path_test
-                )[0]
+                trainer.test(model=model, datamodule=datamodule, ckpt_path=cfg.ckpt_path_test
+                )
             else:
                 trainer.test(model=model, datamodule=datamodule, ckpt_path="best")
 

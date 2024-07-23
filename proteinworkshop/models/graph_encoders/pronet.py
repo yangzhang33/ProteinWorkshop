@@ -394,6 +394,7 @@ class ProNet(nn.Module):
     def forward(self, batch_data: Union[Batch, ProteinBatch]) -> EncoderOutput:
         # print('===== New ========================')
         # conver one-hot encoding back to its class labels
+        # print(batch_data)
         if batch_data.x.shape[1] != 1:
             device = batch_data.x.device
             x = batch_data.x.cpu()
@@ -401,6 +402,7 @@ class ProNet(nn.Module):
             labels = np.argmax(one_hot_encoded_array, axis=1)
             labels_tensor = torch.from_numpy(labels)
             x = labels_tensor.view(-1, 1).to(device)
+        # print(x.shape)
         # print(batch_data)
         z, pos, batch = torch.squeeze(x.long()), batch_data.pos, batch_data.batch   # coords_ca
         # inspect_tensor(z, name="z")
@@ -557,6 +559,7 @@ class ProNet(nn.Module):
         y = self.lin_out(y)
         # inspect_tensor(y, name="lin_out") 
         # return y
+        # print(y.shape)
         return EncoderOutput(
             {
                 "graph_embedding": y, # y (n graphs, d)
