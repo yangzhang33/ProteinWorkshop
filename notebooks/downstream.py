@@ -105,7 +105,7 @@ def train(args, model, loader, optimizer, device, featuriser):
     preds = []
     functions = []
     for step, batch in enumerate(tqdm(loader, disable=args.disable_tqdm)):
-        # batch = featuriser(batch)
+        batch = featuriser(batch)
         if args.mask:
             # random mask node aatype
             mask_indice = torch.tensor(np.random.choice(batch.num_nodes, int(batch.num_nodes * args.mask_aatype), replace=False))
@@ -160,7 +160,7 @@ def evaluation(args, model, loader, device, featuriser):
     preds = []
     functions = []
     for step, batch in enumerate(loader):
-        # batch = featuriser(batch)
+        batch = featuriser(batch)
         batch = batch.to(device)
         # pred = model(batch)
         try:

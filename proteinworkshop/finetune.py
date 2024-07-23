@@ -161,19 +161,19 @@ def train_model(
         log.info(f"Model output: {out}")
         del batch, out
 ###############################################
-    # ckpt_path = "/home/zhang/Projects/3d/proteinworkshop_checkpoints/outputs_pronet_pretraining_best@2/checkpoints/epoch_002_filtered.ckpt"
-    # log.info(f"Loading weights from checkpoint {ckpt_path}...")
-    # state_dict = torch.load(ckpt_path)["state_dict"]
+    ckpt_path = "/home/zhang/Projects/3d/proteinworkshop_checkpoints/outputs_schnet_pretraining_best@0/checkpoints/last.ckpt"
+    log.info(f"Loading weights from checkpoint {ckpt_path}...")
+    state_dict = torch.load(ckpt_path)["state_dict"]
 
-    # # encoder
-    # encoder_weights = collections.OrderedDict()
-    # for k, v in state_dict.items():
-    #     if k.startswith("encoder"):
-    #         encoder_weights[k.replace("encoder.", "")] = v
-    # log.info(f"Loading encoder weights: {encoder_weights}")
-    # err = model.encoder.load_state_dict(encoder_weights, strict=False)
-    # # model.encoder.lin_out = torch.nn.Linear(128, 1195) # here
-    # log.warning(f"Error loading encoder weights: {err}")
+    # encoder
+    encoder_weights = collections.OrderedDict()
+    for k, v in state_dict.items():
+        if k.startswith("encoder"):
+            encoder_weights[k.replace("encoder.", "")] = v
+    log.info(f"Loading encoder weights: {encoder_weights}")
+    err = model.encoder.load_state_dict(encoder_weights, strict=False)
+    # model.encoder.lin_out = torch.nn.Linear(128, 1195) # here
+    log.warning(f"Error loading encoder weights: {err}")
 
 ##################################################
     object_dict = {

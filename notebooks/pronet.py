@@ -18,7 +18,7 @@ from torch.nn import Embedding
 import torch.nn.functional as F
 
 import numpy as np
-
+from torch_geometric.utils import contains_self_loops
 
 num_aa_type = 26
 num_side_chain_embs = 8
@@ -389,6 +389,7 @@ class ProNet(nn.Module):
 
         if self.level == 'aminoacid':
             x = self.embedding(z)
+            print('x', x)
         elif self.level == 'backbone':
             x = torch.cat([torch.squeeze(F.one_hot(z, num_classes=num_aa_type).float()), bb_embs], dim = 1)
             x = self.embedding(x)
@@ -402,14 +403,18 @@ class ProNet(nn.Module):
         if "edge_index" not in batch_data:
             edge_index = radius_graph(pos, r=self.cutoff, batch=batch, max_num_neighbors=self.max_num_neighbors).to(device) #maybe add knn graphs
         else:
-            edge_index = batch_data.edge_index.to(device)
+            edge_index = batch_data.edge_index.to(device) # knn
             
         pos_emb = self.pos_emb(edge_index, self.num_pos_emb)
         j, i = edge_index
 
         # Calculate distances.
         dist = (pos[i] - pos[j]).norm(dim=1)
-        
+        # dist += 0.001
+        print('dist', dist)
+        print(contains_self_loops(edge_index))
+        print('here',  pos[i].cpu())
+        # print(j)
         num_nodes = len(z)
 
         # Calculate angles theta and phi.
@@ -427,7 +432,7 @@ class ProNet(nn.Module):
         phi = torch.atan2(b, a)
 
         feature0 = self.feature0(dist, theta, phi)
-
+        print('feature0', feature0)
         if self.level == 'backbone' or self.level == 'allatom':
             # Calculate Euler angles.
             Or1_x = pos_n[i] - pos[i]
