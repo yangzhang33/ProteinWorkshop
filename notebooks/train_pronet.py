@@ -42,18 +42,19 @@ cfg = hydra.compose(
         "dataset.datamodule.batch_size=32",
         "features=ca_base", 
         "+aux_task=none",
-        "+ckpt_path=/home/zhang/Projects/3d/ProteinWorkshop/notebooks/outputs/checkpoints/last.ckpt",
-        "trainer.max_epochs=400",
+        
+        "trainer.max_epochs=150",
         "optimiser=adam",
-        "optimiser.optimizer.lr=5e-4",
-        "callbacks.early_stopping.patience=200",
+        "optimiser.optimizer.lr=3e-4",
+        "callbacks.early_stopping.patience=10",
         "test=True",
-        "scheduler=steplr",
+        "scheduler=plateau", # 5 epochs - 0.6 default
 
         ## for test ONLY
         # "task_name=test",  # here
-        # "ckpt_path_test=/home/zhang/Projects/3d/proteinworkshop_checkpoints/outputs_pronet_fold_400epochs/checkpoints/epoch_273.ckpt", # here
+        # "ckpt_path_test=/home/zhang/Projects/3d/ProteinWorkshop/notebooks/outputs/checkpoints/epoch_016.ckpt", # here
         # "optimizer.weight_decay=0.5"
+        "seed=52",
     ],
     return_hydra_config=True,
 )
@@ -65,6 +66,7 @@ cfg.hydra.hydra_help.hydra_help = False
 cfg.hydra.runtime.output_dir = "outputs"
 
 HydraConfig.instance().set_config(cfg)
+
 
 from proteinworkshop.configs import config
 
