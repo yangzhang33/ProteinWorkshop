@@ -37,6 +37,8 @@ cfg = hydra.compose(
         "encoder.atomref=null",
         "encoder.pretraining=False",
 
+        # "decoder.graph_label.dummy=True",
+
         "task=multiclass_graph_classification",
         "dataset=ec_reaction",
         "dataset.datamodule.batch_size=32",
@@ -49,12 +51,12 @@ cfg = hydra.compose(
         "callbacks.early_stopping.patience=10",
         "test=True",
         "scheduler=plateau", # 5 epochs - 0.6 default
-
+        # "+ckpt_path=/home/zhang/Projects/3d/ProteinWorkshop/notebooks/outputs_schnet_ec_fintuned_res/checkpoints/last.ckpt", # continue training
         ## for test ONLY
         # "task_name=test",  # here
-        # "ckpt_path_test=/home/zhang/Projects/3d/ProteinWorkshop/notebooks/outputs/checkpoints/epoch_016.ckpt", # here
+        # "ckpt_path_test=/home/zhang/Projects/3d/proteinworkshop_checkpoints/outputs_pronet_fold_400epochs/checkpoints/epoch_273.ckpt", # here
         # "optimizer.weight_decay=0.5"
-        "seed=52",
+        "seed=43",
     ],
     return_hydra_config=True,
 )
@@ -64,9 +66,7 @@ cfg.hydra.job.num = 0
 cfg.hydra.job.id = 0
 cfg.hydra.hydra_help.hydra_help = False
 cfg.hydra.runtime.output_dir = "outputs"
-
 HydraConfig.instance().set_config(cfg)
-
 
 from proteinworkshop.configs import config
 
@@ -77,6 +77,8 @@ for key in cfg.keys():
     print(key)
     print(cfg[key])
 
-from proteinworkshop.train import train_model
+cfg.get("ckpt_path")
+
+from proteinworkshop.finetune import train_model
 
 train_model(cfg)

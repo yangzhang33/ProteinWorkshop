@@ -161,7 +161,7 @@ def train_model(
         log.info(f"Model output: {out}")
         del batch, out
 ###############################################
-    ckpt_path = "/home/zhang/Projects/3d/proteinworkshop_checkpoints/outputs_schnet_pretraining_best@0/checkpoints/epoch_000.ckpt"
+    ckpt_path = "/home/zhang/Projects/3d/ProteinWorkshop/notebooks/outputs_schnet_pretraining_@1(3e-4, ca, warmup)/checkpoints/epoch_001.ckpt"
     log.info(f"Loading weights from checkpoint {ckpt_path}...")
     state_dict = torch.load(ckpt_path)["state_dict"]
 
