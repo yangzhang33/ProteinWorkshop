@@ -40,9 +40,9 @@ cfg = hydra.compose(
         # "decoder.graph_label.dummy=True",
 
         "task=multiclass_graph_classification",
-        "dataset=ec_reaction",
+        "dataset=fold_family",
         "dataset.datamodule.batch_size=32",
-        "features=ca_base", 
+        "features=ca_angles", 
         "+aux_task=none",
         
         "trainer.max_epochs=150",
@@ -51,12 +51,12 @@ cfg = hydra.compose(
         "callbacks.early_stopping.patience=10",
         "test=True",
         "scheduler=plateau", # 5 epochs - 0.6 default
-        # "+ckpt_path=/home/zhang/Projects/3d/ProteinWorkshop/notebooks/outputs_schnet_ec_fintuned_res/checkpoints/last.ckpt", # continue training
+        # "+ckpt_path=/home/zhang/Projects/3d/ProteinWorkshop/notebooks/outputs/checkpoints/last.ckpt", # continue training
         ## for test ONLY
         # "task_name=test",  # here
         # "ckpt_path_test=/home/zhang/Projects/3d/proteinworkshop_checkpoints/outputs_pronet_fold_400epochs/checkpoints/epoch_273.ckpt", # here
         # "optimizer.weight_decay=0.5"
-        "seed=43",
+        "seed=52",
     ],
     return_hydra_config=True,
 )

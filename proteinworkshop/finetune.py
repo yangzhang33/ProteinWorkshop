@@ -161,17 +161,17 @@ def train_model(
         log.info(f"Model output: {out}")
         del batch, out
 ###############################################
-    ckpt_path = "/home/zhang/Projects/3d/ProteinWorkshop/notebooks/outputs_schnet_pretraining_@1(3e-4, ca, warmup)/checkpoints/epoch_001.ckpt"
+    ckpt_path = "/home/zhang/Projects/3d/ProteinWorkshop/notebooks/outputs_schnet_pretraining_@8(3e-4,wu,ca_bb_pos)/checkpoints/epoch_008.ckpt"
     log.info(f"Loading weights from checkpoint {ckpt_path}...")
     state_dict = torch.load(ckpt_path)["state_dict"]
-
+    print(state_dict)
     # encoder
     encoder_weights = collections.OrderedDict()
     for k, v in state_dict.items():
         if k.startswith("encoder"):
             encoder_weights[k.replace("encoder.", "")] = v
     log.info(f"Loading encoder weights: {encoder_weights}")
-    err = model.encoder.load_state_dict(encoder_weights, strict=False)
+    err = model.encoder.load_state_dict(encoder_weights, strict=True)
     # model.encoder.lin_out = torch.nn.Linear(128, 1195) # here
     log.warning(f"Error loading encoder weights: {err}")
 
