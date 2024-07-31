@@ -130,6 +130,7 @@ dmypy.json
 
 # Hydra
 outputs/
+outputs_all/
 
 # Data
 *.pdb
